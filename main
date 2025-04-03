@@ -20,7 +20,7 @@ DigitalOut OUTPUT(PB_4); //CN9/D5
 float LightSensorDigiValue; 
 float LightSensorVoltValue; 
 float LdrResistance; 
-#define LdrBiasResistor 3300.0f 
+#define LdrBiasResistor 10000.0f 
 
 // Variables for temperature sensor
 float TemperatureSensorDigiValue; 
