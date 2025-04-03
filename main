@@ -1,144 +1,140 @@
 /* mbed Microcontroller Library
-* Copyright (c) 2019 ARM Limited
-* SPDX-License-Identifier: Apache-2.0
-*/
-#include "mbed.h"
-#include <cstdio>
-#include <iostream>
+ * Copyright (c) 2019 ARM Limited
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-AnalogIn LightSensor(PA_0); //CN8/A0
-AnalogIn TemperatureSensor(PA_1); //CN8/A1
-AnalogIn TorqueSensor(PC_1); //CN8/A4
+#include "mbed.h"       // Include the mbed library for microcontroller support
+#include <cstdio>       // Include standard C library for input/output
+#include <iostream>     // Include C++ I/O stream library for console printing
 
-InterruptIn START_BUTTON(PB_5); //CN5/D4
-InterruptIn STOP_BUTTON(PA_10); //CN5/D2
-DigitalOut OUTPUT(PB_4); //CN9/D5
+// Define analog input pins for sensors
+AnalogIn LightSensor(PA_0);      // Light sensor input on pin PA_0 (CN8/A0)
+AnalogIn TemperatureSensor(PA_1);// Temperature sensor input on pin PA_1 (CN8/A1)
+AnalogIn TorqueSensor(PC_1);     // Torque sensor input on pin PC_1 (CN8/A4)
 
-#define Vsupply 3.3f //microcontroller voltage supply 3.3V
+// Define digital input pins for buttons with interrupt capability
+InterruptIn START_BUTTON(PB_5);  // Start button on pin PB_5 (CN5/D4)
+InterruptIn STOP_BUTTON(PA_10);  // Stop button on pin PA_10 (CN5/D2)
 
-// Variables for light sensor
-float LightSensorDigiValue; 
-float LightSensorVoltValue; 
-float LdrResistance; 
-#define LdrBiasResistor 10000.0f 
+// Define digital output pin for control signal
+DigitalOut OUTPUT(PB_4);         // Output control pin on PB_4 (CN9/D5)
 
-// Variables for temperature sensor
-float TemperatureSensorDigiValue; 
-float TemperatureSensorVoltValue; 
-float ThermistorResistance; 
-float ThermistorTemperature; 
-#define ThermistorBiasResistor 10000.0f 
+// Define constant for microcontroller voltage supply (3.3V)
+#define Vsupply 3.3f 
 
-// Variables for torque sensor
-float MotorCurrentDigiValue; 
-float MotorCurrentVoltValue; 
-float MotorCurrent; 
-#define MotorSeriesResistance 10.0f 
+// Variables for light sensor readings
+float LightSensorDigiValue;   // Digital value read from sensor (0 to 1)
+float LightSensorVoltValue;   // Converted voltage value
+float LdrResistance;          // Calculated resistance of the LDR
+#define LdrBiasResistor 10000.0f  // Fixed resistor in LDR voltage divider circuit
 
-// Control reference values
-float LightResistanceLimit = 500; // LDR activation resistance threshold
-float TemperatureLimit = 27; // Temperature threshold for deactivation
-float MotorCurrentLimit = 5; // Torque threshold for deactivation
+// Variables for temperature sensor readings
+float TemperatureSensorDigiValue; // Digital value read from sensor (0 to 1)
+float TemperatureSensorVoltValue; // Converted voltage value
+float ThermistorResistance;       // Calculated resistance of the thermistor
+float ThermistorTemperature;      // Computed temperature value in Celsius
+#define ThermistorBiasResistor 10000.0f // Fixed resistor in thermistor voltage divider circuit
 
-// Start button function
-void StartPressed(void)
-{
-    cout << "Start!" << endl;
-    OUTPUT = 1;
+// Variables for torque sensor readings
+float MotorCurrentDigiValue; // Digital value read from sensor (0 to 1)
+float MotorCurrentVoltValue; // Converted voltage value
+float MotorCurrent;          // Computed current value in Amperes
+#define MotorSeriesResistance 10.0f // Resistance used to measure current
+
+// Reference threshold values for sensor-based control
+float LightResistanceLimit = 500;  // LDR resistance threshold for activation
+float TemperatureLimit = 27;       // Temperature threshold for deactivation (°C)
+float MotorCurrentLimit = 5;       // Motor current limit for safety shutdown (A)
+
+// Function to handle Start button press
+void StartPressed(void) {
+    cout << "Start!" << endl; // Print message
+    OUTPUT = 1;               // Activate output (turn device ON)
 }
 
-// Stop button function
-void StopPressed(void)
-{
-    cout << "Stop!" << endl;
-    OUTPUT = 0;
+// Function to handle Stop button press
+void StopPressed(void) {
+    cout << "Stop!" << endl;  // Print message
+    OUTPUT = 0;               // Deactivate output (turn device OFF)
 }
 
-// Convert light sensor voltage to resistance
-float getPhotoResistance(void)
-{
-    LightSensorDigiValue = LightSensor.read();
-    LightSensorVoltValue = Vsupply * LightSensorDigiValue;
-    LdrResistance = LightSensorVoltValue * LdrBiasResistor / (Vsupply - LightSensorVoltValue); 
-    return LdrResistance;
+// Function to compute light sensor resistance from voltage reading
+float getPhotoResistance(void) {
+    LightSensorDigiValue = LightSensor.read(); // Read normalized value (0 to 1)
+    LightSensorVoltValue = Vsupply * LightSensorDigiValue; // Convert to voltage
+    LdrResistance = LightSensorVoltValue * LdrBiasResistor / (Vsupply - LightSensorVoltValue); // Compute LDR resistance
+    return LdrResistance; // Return computed resistance
 }
 
-// Check LDR sensor
-void CheckLightSensor(void)
-{
-    if(getPhotoResistance() >= LightResistanceLimit) {
+// Function to check if light sensor triggers activation
+void CheckLightSensor(void) {
+    if (getPhotoResistance() >= LightResistanceLimit) { // If resistance is above threshold
         cout << "LDR Start!" << endl;
-        OUTPUT = 1;
+        OUTPUT = 1; // Activate output
     }
 }
 
-// Convert thermistor voltage to temperature
-float getThermistorTemperature(void)
-{
-    TemperatureSensorDigiValue = TemperatureSensor.read();
-    TemperatureSensorVoltValue = Vsupply * TemperatureSensorDigiValue;
-    ThermistorResistance = (TemperatureSensorVoltValue * ThermistorBiasResistor) / (Vsupply - TemperatureSensorVoltValue);
-    ThermistorTemperature = ((ThermistorResistance - 10000.0) / (-320.0)) + 25.0; // Approximate conversion
-    return ThermistorTemperature;
+// Function to compute thermistor temperature from voltage reading
+float getThermistorTemperature(void) {
+    TemperatureSensorDigiValue = TemperatureSensor.read(); // Read normalized value
+    TemperatureSensorVoltValue = Vsupply * TemperatureSensorDigiValue; // Convert to voltage
+    ThermistorResistance = (TemperatureSensorVoltValue * ThermistorBiasResistor) / (Vsupply - TemperatureSensorVoltValue); // Compute resistance
+    ThermistorTemperature = ((ThermistorResistance - 10000.0) / (-320.0)) + 25.0; // Approximate temperature conversion formula
+    return ThermistorTemperature; // Return computed temperature
 }
 
-// Check temperature sensor
-void CheckTemperatureSensor(void)
-{
-    if(getThermistorTemperature() >= TemperatureLimit) {
+// Function to check if temperature exceeds limit
+void CheckTemperatureSensor(void) {
+    if (getThermistorTemperature() >= TemperatureLimit) { // If temperature exceeds limit
         cout << "Temperature Limit Exceeded!" << endl;
-        OUTPUT = 0;
+        OUTPUT = 0; // Deactivate output
     }
 }
 
-// Convert torque sensor voltage to current
-float getMotorCurrent(void)
-{
-    MotorCurrentDigiValue = TorqueSensor.read();
-    MotorCurrentVoltValue = Vsupply * MotorCurrentDigiValue;
-    MotorCurrent = MotorCurrentVoltValue / MotorSeriesResistance;
-    return MotorCurrent;
+// Function to compute motor current from torque sensor voltage
+float getMotorCurrent(void) {
+    MotorCurrentDigiValue = TorqueSensor.read(); // Read normalized value
+    MotorCurrentVoltValue = Vsupply * MotorCurrentDigiValue; // Convert to voltage
+    MotorCurrent = MotorCurrentVoltValue / MotorSeriesResistance; // Compute current using Ohm's law
+    return MotorCurrent; // Return computed current
 }
 
-// Check torque sensor
-void CheckTorqueSensor(void)
-{
-    if(getMotorCurrent() >= MotorCurrentLimit) {
+// Function to check if motor current exceeds limit
+void CheckTorqueSensor(void) {
+    if (getMotorCurrent() >= MotorCurrentLimit) { // If motor current is too high
         cout << "Over Torque Condition!" << endl;
-        OUTPUT = 0;
+        OUTPUT = 0; // Deactivate output to protect motor
     }
 }
 
 // Main function
-int main(void)
-{
-    // Setup an event queue for ISR handling
+int main(void) {
+    // Create an event queue for handling interrupts in a separate thread
     EventQueue event_queue;
     
-    // Setup an event thread
+    // Create a separate thread for event processing
     Thread event_thread(osPriorityNormal);
     
-    // Start event loop
+    // Start the event processing thread
     event_thread.start(callback(&event_queue, &EventQueue::dispatch_forever));
     
-    // Attach interrupts to buttons
-    START_BUTTON.rise(event_queue.event(&StartPressed));
-    STOP_BUTTON.rise(event_queue.event(&StopPressed));
+    // Attach event-driven functions to button presses
+    START_BUTTON.rise(event_queue.event(&StartPressed)); // Call StartPressed when button is pressed
+    STOP_BUTTON.rise(event_queue.event(&StopPressed));   // Call StopPressed when button is pressed
 
-    while(true) {
-        // Check sensors
+    while (true) {
+        // Continuously check sensor conditions
         CheckLightSensor();
         CheckTemperatureSensor();
         CheckTorqueSensor();
 
-        // Print sensor values
-        cout << "\n\rLDR Resistance: " << getPhotoResistance() << endl;
+        // Print sensor readings to console
+        cout << "\n\rLDR Resistance: " << getPhotoResistance() << " Ohms" << endl;
         cout << "\rCurrent Temperature: " << getThermistorTemperature() << "°C" << endl;
         cout << "\rMotor Current: " << getMotorCurrent() << " A" << endl;
         cout << "\rStart Button: " << START_BUTTON.read() << endl;
         cout << "\rStop Button: " << STOP_BUTTON.read() << endl;
         
-        wait_us(1000000); // Wait 1 second
+        wait_us(1000000); // Wait 1 second before next loop iteration
     }
 }
-
