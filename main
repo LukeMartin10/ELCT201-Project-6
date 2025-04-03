@@ -42,9 +42,9 @@ float MotorCurrent;          // Computed current value in Amperes
 #define MotorSeriesResistance 10.0f // Resistance used to measure current
 
 // Reference threshold values for sensor-based control
-float LightResistanceLimit = 500;  // LDR resistance threshold for activation
+float LightResistanceLimit = 6000;  // LDR resistance threshold for activation
 float TemperatureLimit = 27;       // Temperature threshold for deactivation (°C)
-float MotorCurrentLimit = 5;       // Motor current limit for safety shutdown (A)
+float MotorCurrentLimit = 0.15;    // Motor current limit for safety shutdown (A)
 
 // Function to handle Start button press
 void StartPressed(void) {
